@@ -1,4 +1,4 @@
 gss-g1
 ======
 
-gss-g1
+Ma nguon cho dieu khien G1
