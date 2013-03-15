@@ -29,6 +29,7 @@
 #define NUM_BUF_TX_USART	32
 /*define laser ---------------------------------------------------------------*/
 #define NUM_BUF_RX_LASER 	2
+#define LOST_SIGNAL					0
 /*define ADC -----------------------------------------------------------------*/
 #define NUM_BUF_ADC 			3
 /*define Motor ---------------------------------------------------------------*/
@@ -77,7 +78,7 @@ __IO uint16_t ADCValue[NUM_BUF_ADC];
 static signed char rxBufLaser[NUM_BUF_RX_LASER];
 SLAVE slectedLaser;
 int a,b;
-
+BUFF rxLaser;
 /* usart */
 char txBufUsart[NUM_BUF_TX_USART];
 BUFF rxUI;
@@ -89,6 +90,7 @@ tPID posPID;
 tPID aPID;
 tPID stL_PID;
 tPID stR_PID;
+
 double Kcoeff[5][3] ={{0.01,0,0},
 											{0,0,0},
 											{0,0,0},
@@ -98,11 +100,13 @@ double ABCcoeff[5][3];
 double historyControl[5][3];
 
 int32_t countEncoder,countEncoderOld;
-double vCurrent, vOld;
-double aCurrent;
+double vCurrent;
 double pwmPID[3];
 double velocitySet;
 
+int speed,angleLeft,angleRight;
+int OFFSET_ST;
+int Ka, Ks;
 //capture variable.
 __IO uint32_t CaptureEncoder = 0;
 
@@ -122,8 +126,10 @@ void laserLost(void);
 
 /*laser sensor ----------------------------------------*/
 void findSetpointST(int ratioF,int ratioB);
+void controlRobot(int ratioF,int ratioB);
 void mainTest(void);
 void mainRun(void);
+void mainStop(void);
 
 /**
   * @brief  Main program
@@ -174,18 +180,6 @@ void mainTest(void){
 	}
 	
 	if(flag[START_MAIN] == TRUE){
-		/* read data slave --------------------------------------------------------------------*/
-		if((count[MAIN] % 5) == 0){
-			if(slectedLaser == LASER_BACK){
-				/*truyen cho slaver laser truoc*/
-				putCharUsart(ADDRESS_SLAVE_LASER_F, USART3);	/*truyen dia chi cho slave laser truoc*/
-				slectedLaser = LASER_FORNT;
-			}else if(slectedLaser == LASER_FORNT){
-				/*truyen cho slave laser sau*/
-				putCharUsart(ADDRESS_SLAVE_LASER_B, USART3);	/*truyen dia chi cho slave laser sau*/
-				slectedLaser = LASER_BACK;
-			}
-		}
 	}
 	else{
 		Motor[0].pwm = 0;
@@ -205,6 +199,7 @@ void mainTest(void){
 	@function: chua cac ham process trong main.
 */
 void mainRun(void){
+		/* kiem tra du lieu truyen ve*/
 		if(flag[0] == TRUE){
   			if(CheckDataRxUI() == TRUE) 	GPIO_SetBits(GPIOD, GPIO_Pin_14);
   			else 													GPIO_ResetBits(GPIOD, GPIO_Pin_14);
@@ -213,21 +208,57 @@ void mainRun(void){
 		}
 		
 		if(flag[START_MAIN] == TRUE){
+				angleLeft = readAdc(ADC_ANGLE_L);
+				angleRight = readAdc(ADC_ANGLE_R);
+				speed = readAdc(ADC_SPEED);
+// 				/* phat laser voi tan so 38Khz */
+				if(count[MAIN]%50 == 0){
+					flag[TOGGLE_PWM]^=1;
+					if(flag[TOGGLE_PWM] == TRUE) 	TIM11->CCR1 = 4300;
+					else													TIM11->CCR1 = 0;
+				}
+				/* read data slave --------------------------------------------------------------------*/
+				if((count[MAIN] % 70) == 0){
+					if(slectedLaser == LASER_BACK){
+						/*truyen cho slaver laser truoc*/
+						putCharUsart(ADDRESS_SLAVE_LASER_F, USART3);	/*truyen dia chi cho slave laser truoc*/
+						slectedLaser = LASER_FORNT;
+					}
+					else if(slectedLaser == LASER_FORNT){
+						/*truyen cho slave laser sau*/
+						putCharUsart(ADDRESS_SLAVE_LASER_B, USART3);	/*truyen dia chi cho slave laser sau*/
+						slectedLaser = LASER_BACK;
+					}	
+				}
+				/* chon goc pe lai cho robot */
+				if(Motor[0].dir == CCW){
+					OFFSET_ST = 200;
+				}
+				else{
+					OFFSET_ST = -200;
+				}
 		}
-		else{		
+		else{
+				mainStop();
 		}
 		
-		if(count[MAIN]%50 == 0){
-			flag[TOGGLE_PWM]^=1;
-			if(flag[TOGGLE_PWM] == TRUE) 	TIM11->CCR1 = 4300;
-			else													TIM11->CCR1 = 0;
-		}
-		
-		/**/
+		/* truyen du lieu len may tinh */
  		if(count[MAIN]%300 == 0){
-			if(flag[TX_EN] == TRUE)	txComputer(pointTX);
+			if(flag[TX_EN] == TRUE)	txComputer(1);
  		}
 		delayMs(SCAN_MAIN_RUN);
+}
+
+void mainStop(void){
+//	TIM11->CCR1 = 0;
+	GPIO_ResetBits(GPIOD,GPIO_Pin_15);
+	GPIO_ResetBits(GPIOD,GPIO_Pin_13);
+	Motor[0].pwm = 0;
+	Motor[1].pwm = 0;
+	Motor[2].pwm = 0;
+	controlMotor(Motor[0]);
+	controlMotor(Motor[1]);
+	controlMotor(Motor[2]);
 }
 
 /* function support ------------------------------------*/
@@ -293,8 +324,6 @@ void controlMD(void){
 	
 	countEncoder += TIM_GetCounter(TIM8) - 30000;
 	vCurrent = 200000.0/CaptureEncoder;
-	aCurrent = (double)(vCurrent - vOld);
-	vOld  = vCurrent;
 	
 	/* control theo van toc --------------------------------------*/
 	velocityPID.measureOutput =(double)vCurrent;	//nhap gia tri hien tai
@@ -329,7 +358,7 @@ void controlMD(void){
 	@fuction: dieu khien motor steering left theo PID Conttrol
 */
 void controlSTL(void){
-	stL_PID.measureOutput = readAdc(ADC_ANGLE_L);
+	stL_PID.measureOutput = angleLeft;
 
 	pwmPID[1] = PID(&stL_PID);
 	
@@ -356,7 +385,7 @@ void controlSTL(void){
 	@fuction: dieu khien motor steering right theo PID Conttrol
 */
 void controlSTR(void){
-	stR_PID.measureOutput = readAdc(ADC_ANGLE_R);
+	stR_PID.measureOutput = angleRight;
 	pwmPID[2] = PID(&stR_PID);
 	
 	if(pwmPID[2] < 0 && stL_PID.measureOutput > MIN_STR){
@@ -390,21 +419,12 @@ void laserLost(void){
 	}
 }
 
-<<<<<<< HEAD
 /**
 	@void: findSetpointST
 	@para: int ratioF
 				 int ratioB
 	@returnVar: none.
 	@fuction: ham tim setpoint cho hai dong steering va control motor driver
-=======
-/*
-	@void: findSetpointST
-	@para: int ratioF
-				 int ratioB
-	@return var: none.
-	fuction: ham tim setpoint cho hai dong steering va control motor driver
->>>>>>> tu: update coment va thay doi vi tri cac ham
 */
 void findSetpointST(int ratioF,int ratioB){
 	int value_angle_steering;
@@ -413,7 +433,7 @@ void findSetpointST(int ratioF,int ratioB){
 	if(ratioB != -51) b = ratioB;
 	
 	if(Motor[MDRIVER].dir == CCW){
-		value_angle_steering = a*5 + (a - b)*2;
+		value_angle_steering = a*5 + (a - b)*0;
 		
 		if(ratioF != -51){
 			setpointSTR = MID_STR - value_angle_steering;
@@ -431,8 +451,9 @@ void findSetpointST(int ratioF,int ratioB){
 		else{
 			flag[LASER_LOST] = TRUE;
 		}
-	}else{
-		value_angle_steering = b*5 + (b - a)*2;
+	}
+	else{
+		value_angle_steering = b*5 + (b - a)*0;
 		if(ratioB != -51){
 			setpointSTR = MID_STR - value_angle_steering;
 			if(setpointSTR > MAX_STR)	setpointSTR = MAX_STR;
@@ -452,38 +473,81 @@ void findSetpointST(int ratioF,int ratioB){
 	}
 }
 
-<<<<<<< HEAD
+
+/**
+	@void: controlRobot
+	@para: int ratioF
+				 int ratioB
+	@returnVar: none.
+	@fuction: ham tim setpoint cho hai dong steering va control motor driver
+*/
+void controlRobot(int ratioF,int ratioB){
+	count[5]++;
+	if(ratioF == LOST_SIGNAL && ratioB == LOST_SIGNAL){
+		/* LOST SIGNAL -------------------------------------*/
+		STM_EVAL_LEDOn(LED3);
+		STM_EVAL_LEDOff(LED4);
+		STM_EVAL_LEDOff(LED5);
+		STM_EVAL_LEDOff(LED6);
+		
+		Motor[MDRIVER].pwm = 0; 
+	}
+	else if(ratioF != LOST_SIGNAL && ratioB == LOST_SIGNAL){
+		/* LEFT ---------------------------------------------*/
+		STM_EVAL_LEDOn(LED4);
+		STM_EVAL_LEDOff(LED3);
+		STM_EVAL_LEDOff(LED5);
+		STM_EVAL_LEDOff(LED6);
+		
+		Motor[MDRIVER].pwm = speed; 
+		stR_PID.controlReference = MID_STR + OFFSET_ST;	//lui
+		stL_PID.controlReference = MID_STL + OFFSET_ST;
+		
+	}
+	else if(ratioF == LOST_SIGNAL && ratioB != LOST_SIGNAL){
+		/* RIGHT ---------------------------------------------*/
+		STM_EVAL_LEDOn(LED5);
+		STM_EVAL_LEDOff(LED3);
+		STM_EVAL_LEDOff(LED4);
+		STM_EVAL_LEDOff(LED6);
+		
+		Motor[MDRIVER].pwm = speed;
+		stR_PID.controlReference = MID_STR - OFFSET_ST; //lui
+		stL_PID.controlReference = MID_STL - OFFSET_ST;
+	}
+	else if(ratioF != LOST_SIGNAL && ratioB != LOST_SIGNAL){
+		/* MID  ---------------------------------------------*/
+		STM_EVAL_LEDOn(LED6);
+		STM_EVAL_LEDOff(LED3);
+		STM_EVAL_LEDOff(LED4);
+		STM_EVAL_LEDOff(LED5);
+		
+		Motor[MDRIVER].pwm = speed; 
+		stR_PID.controlReference = MID_STR;
+		stL_PID.controlReference = MID_STL;
+	}
+	
+	if(count[5] == 50)	{count[5] = 0; controlMotor(Motor[MDRIVER]);}
+	controlSTL();
+ 	controlSTR();
+}
+
 /**
 	@void: ABS
 	@para: doble a
 	@returnVar: double |a|
 	@fuction: tra ve gia tri ko am cho so dua vao.
-=======
-/*
-	@void: ABS
-	@para: doble a
-	@return var: double |a|
-	fuction: tra ve gia tri ko am cho so dua vao.
->>>>>>> tu: update coment va thay doi vi tri cac ham
 */
 double ABS(double a){
 	if(a<0) return -a;
 	else		return a;
 }
 
-<<<<<<< HEAD
 /**
 	@void: delRxUI
 	@para: none
 	@returnVar: none.
 	@fuction: xoa cac phan tu trong mang rxUI.rxData[]
-=======
-/*
-	@void: delRxUI
-	@para: none
-	@return var: none.
-	fuction: xoa cac phan tu trong mang rxUI.rxData[]
->>>>>>> tu: update coment va thay doi vi tri cac ham
 */
 void delRxUI(void){
 	while(rxUI.point != 0){
@@ -491,19 +555,23 @@ void delRxUI(void){
 	}
 }
 
-<<<<<<< HEAD
+/**
+	@void: delRxUI
+	@para: none
+	@returnVar: none.
+	@fuction: xoa cac phan tu trong mang rxLaser.rxData[]
+*/
+void delrxLaser(void){
+	while(rxLaser.point != 0){
+		rxLaser.rxData[rxLaser.point--] = '\0';
+	}
+}
+
 /**
 	@void: CheckDataRxUI
 	@para: none
 	@returnVar: Bit(TRUE,FALSE)
 	@fuction: - kiem tra du lieu truyen tu panel  co err hay ko? if TRUE them err
-=======
-/*
-	@void: CheckDataRxUI
-	@para: none
-	@return var: Bit(TRUE,FALSE)
-	fuction: - kiem tra du lieu truyen tu panel  co err hay ko? if TRUE them err
->>>>>>> tu: update coment va thay doi vi tri cac ham
 																														else if FALSE them successful
 					 - nhap du lieu dc truyen vao cac mang da dc quy dinh
 */
@@ -515,12 +583,16 @@ Bit CheckDataRxUI(void){
 		if(rxUI.rxData[1] == 1){
 			if(rxUI.rxData[2] == 'r'){
 				TIM_Cmd(TIM4, ENABLE);
+				flag[START_MAIN] = TRUE;
 			}
 			else if(rxUI.rxData[2] == 's'){
 				TIM_Cmd(TIM4, DISABLE);
+				flag[START_MAIN] = FALSE;
 			}
 			else if(rxUI.rxData[2] == 't'){
+				flag[TX_EN] = TRUE;
 				pointTX++;
+				if(pointTX > 2)	pointTX = 0;
 			}
 		}
 		else if(rxUI.rxData[1] == 2){
@@ -529,12 +601,18 @@ Bit CheckDataRxUI(void){
 			}
 			
 			if(tempValue == rxUI.rxData[rxUI.length]){
-				posPID.controlReference = (double)(rxUI.rxData[2]*PULSE_RATIO);garden.V = rxUI.rxData[3]*100; garden.P = rxUI.rxData[4];
+				garden.D = rxUI.rxData[2];garden.V = rxUI.rxData[3]*100; garden.P = rxUI.rxData[4];
+				posPID.controlReference = (double)(garden.D*PULSE_RATIO);
 				
+				/* cac hang so pid cua Motor Driver*/
 				Kcoeff[1][0] = (double)rxUI.rxData[5]/10.0;
 				Kcoeff[1][1] = (double)rxUI.rxData[6]/1000.0;
 				Kcoeff[1][2] = (double)rxUI.rxData[7]/10.0;
 				
+				/* thong so danh lai */
+				Ks = rxUI.rxData[14];
+				Ka = rxUI.rxData[15];
+
 				PIDCoeffCalc(&Kcoeff[1][0],&posPID);
 			}
 			else temp = TRUE;
@@ -543,7 +621,7 @@ Bit CheckDataRxUI(void){
 			if( rxUI.rxData[4] == (char)(rxUI.rxData[2]+rxUI.rxData[3])){
 				tempID = rxUI.rxData[2];
 				Motor[tempID].dir = rxUI.rxData[3];
-				Motor[tempID].pwm = SPEED_MOTOR;
+//				Motor[tempID].pwm = SPEED_MOTOR;
 			}
 			else{
 				temp = TRUE;
@@ -557,19 +635,13 @@ Bit CheckDataRxUI(void){
 	@para: char c
 	@returnVar: none.
 	@fuction: truyen du lieu len may tinh theo cac mode:
-=======
-/*
-	@void: txComputer
-	@para: char c
-	@return var: none.
-	fuction: truyen du lieu len may tinh theo cac mode:
 						c == 0 -> dung viec truyen len may tinh
 						c == 1 -> tryen thong so thay doi, ex: ADC, laser, tx: continus
 						c == 2 -> truyen thong so set cung, ex: kp,ki,kd..., tx: onshot
 */
 void txComputer(char c){
 	if(c == 1){
- 		sprintf(txBufUsart,"ABCcoeff: %d %d\r\n",readAdc(ADC_ANGLE_L),rxBufLaser[LASER_BACK]);
+ 		sprintf(txBufUsart,"ABCcoeff: %d %d\r\n",rxBufLaser[LASER_FORNT],rxBufLaser[LASER_BACK]);
  		putStringUsart(txBufUsart,USART2);		
 	}
 	else if(c == 2){
@@ -594,7 +666,7 @@ void txComputer(char c){
 					connect portA 		-> pin2-RX
 														-> pin3-TX
 */
-/*
+/**
 	@void: USART2_IRQHandler
 	@para: none
 	@rerurn var: none.
@@ -653,11 +725,28 @@ void USART3_IRQHandler(void)
 				gia tri mong mun cu ta la tu -40:40
 				-> gia tri tra ve phai  -50
 				gia tri khi ko nhan duoc gi la -51 */
-			rxBufLaser[slectedLaser] = data - 50;
+//			rxBufLaser[slectedLaser] = data - 50;
 			/* co ngan khi nhan duoc gia tri */
-			flag[RX_LASER] = FALSE;
+//			flag[RX_LASER] = FALSE;
 			/* chop tat led5 khi nhan dc gia tri tra ve */
-			STM_EVAL_LEDToggle(LED3);
+			if(data == 254){
+				rxLaser.flag = 1;				
+				delrxLaser();
+				rxLaser.point = 0;
+			}
+			else{
+				if(rxLaser.flag == 1){
+						if(rxLaser.point == 0){
+							rxLaser.rxData[rxLaser.point++] = data;
+						}
+						else if(rxLaser.point == 1){
+						//	rxLaser.rxData[rxLaser.point] = data;
+							rxBufLaser[rxLaser.rxData[0] - 1] = data;
+							rxLaser.flag = 0;
+							flag[0] = TRUE;
+						}
+				}
+			}
 		}
 }
 
@@ -673,18 +762,12 @@ void TIM4_IRQHandler(void)
 /* PROCESS TIME -------------------------------------------------------------------------------------*/
   if (TIM_GetITStatus(TIM4, TIM_IT_CC1) != RESET)
   {
-		STM_EVAL_LEDToggle(LED6);
 	/* CONFIG TIME -----------------------------------------------------------------------------------*/
-		/*CCR_Val[TIM4->4][channels]. quy dinh thoi gian quay lai.*/		
+		/*CCR_Val[TIM4->4][channels]. quy dinh thoi gian quay lai.*/
 		capture = TIM_GetCapture1(TIM4);
-    TIM_SetCompare1(TIM4, capture + readTimeCCR(TIME_4,1));	
-		
-		findSetpointST(rxBufLaser[LASER_FORNT],rxBufLaser[LASER_BACK]);
- 		controlMD();
- 		controlSTL();
- 		controlSTR();
-		
+    TIM_SetCompare1(TIM4, capture + readTimeCCR(TIME_4,1));
 		TIM_ClearITPendingBit(TIM4, TIM_IT_CC1);
+		controlRobot(rxBufLaser[LASER_FORNT],rxBufLaser[LASER_BACK]);
 		TIM_SetCounter(TIM8,30000);
 	}
 }

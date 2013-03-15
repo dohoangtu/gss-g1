@@ -12,7 +12,7 @@ __IO uint16_t PrescalerValue = 0;
 void TimInitMode(void){
   /* TIM4 clock enable */
   	setModeTimeBase(TIM4_IRQn, TIM4);
-  	setModeTimeChannels(TIM4,1,1000*Hz);
+  	setModeTimeChannels(TIM4,1,500*Hz);
 		TIM_Cmd(TIM4, DISABLE);
 
 		/* GPIOB Configuration: TIM11 CH1 (PB9) ---------*/ 

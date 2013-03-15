@@ -21,6 +21,7 @@ typedef struct{
 #define MAX_STR 3712
 #define MIN_STR 2452
 #define MID_STR 3082
+//#define OFFSET_ST 200;
 
 #define MAX_STL 3573
 #define MIN_STL 2313
