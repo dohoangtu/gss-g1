@@ -211,12 +211,7 @@ void mainRun(void){
 				angleLeft = readAdc(ADC_ANGLE_L);
 				angleRight = readAdc(ADC_ANGLE_R);
 				speed = readAdc(ADC_SPEED);
-// 				/* phat laser voi tan so 38Khz */
-				if(count[MAIN]%50 == 0){
-					flag[TOGGLE_PWM]^=1;
-					if(flag[TOGGLE_PWM] == TRUE) 	TIM11->CCR1 = 4300;
-					else													TIM11->CCR1 = 0;
-				}
+			
 				/* read data slave --------------------------------------------------------------------*/
 				if((count[MAIN] % 70) == 0){
 					if(slectedLaser == LASER_BACK){
@@ -232,11 +227,13 @@ void mainRun(void){
 				}
 				/* chon goc pe lai cho robot */
 				if(Motor[0].dir == CCW){
-					OFFSET_ST = 200;
+					OFFSET_ST = 100;
 				}
 				else{
-					OFFSET_ST = -200;
+					OFFSET_ST = -100;
 				}
+				
+				controlMotor(Motor[MDRIVER]);
 		}
 		else{
 				mainStop();
@@ -404,75 +401,6 @@ void controlSTR(void){
 	controlMotor(Motor[MSTEERING_R]);	
 }
 
-/**
-	@void: laserLost.
-	@para: none.
-	@returnVar: none.
-	@fuction: ham xu li khi mat tin hieu laser.
-*/
-void laserLost(void){
-	if(vCurrent == 0){
-		GPIO_SetBits(GPIOA, GPIO_Pin_7);
-	}
-	else{
-		velocityPID.controlReference = 0;
-	}
-}
-
-/**
-	@void: findSetpointST
-	@para: int ratioF
-				 int ratioB
-	@returnVar: none.
-	@fuction: ham tim setpoint cho hai dong steering va control motor driver
-*/
-void findSetpointST(int ratioF,int ratioB){
-	int value_angle_steering;
-	int setpointSTR,setpointSTL;
-	if(ratioF != -51) a = ratioF;
-	if(ratioB != -51) b = ratioB;
-	
-	if(Motor[MDRIVER].dir == CCW){
-		value_angle_steering = a*5 + (a - b)*0;
-		
-		if(ratioF != -51){
-			setpointSTR = MID_STR - value_angle_steering;
-			if(setpointSTR > MAX_STR)	setpointSTR = MAX_STR;
-			else if(setpointSTR < MIN_STR)	setpointSTR = MIN_STR;
-			stR_PID.controlReference = (double)setpointSTR;
-			
-			setpointSTL = MID_STL - value_angle_steering;
-			if(setpointSTL > MAX_STL)	setpointSTR = MAX_STL;
-			else if(setpointSTL < MIN_STL)	setpointSTR = MIN_STL;
-			stL_PID.controlReference = (double)setpointSTL;
-			
-			flag[LASER_LOST] = FALSE;
-		}
-		else{
-			flag[LASER_LOST] = TRUE;
-		}
-	}
-	else{
-		value_angle_steering = b*5 + (b - a)*0;
-		if(ratioB != -51){
-			setpointSTR = MID_STR - value_angle_steering;
-			if(setpointSTR > MAX_STR)	setpointSTR = MAX_STR;
-			else if(setpointSTR < MIN_STR)	setpointSTR = MIN_STR;
-			stR_PID.controlReference = setpointSTR;
-			
-			setpointSTL = MID_STL - value_angle_steering;
-			if(setpointSTL > MAX_STL)	setpointSTR = MAX_STL;
-			else if(setpointSTL < MIN_STL)	setpointSTR = MIN_STL;
-			stL_PID.controlReference = setpointSTL;
-			
-			flag[LASER_LOST] = FALSE;
-		}
-		else{
-			flag[LASER_LOST] = TRUE;
-		}
-	}
-}
-
 
 /**
 	@void: controlRobot
@@ -482,7 +410,6 @@ void findSetpointST(int ratioF,int ratioB){
 	@fuction: ham tim setpoint cho hai dong steering va control motor driver
 */
 void controlRobot(int ratioF,int ratioB){
-	count[5]++;
 	if(ratioF == LOST_SIGNAL && ratioB == LOST_SIGNAL){
 		/* LOST SIGNAL -------------------------------------*/
 		STM_EVAL_LEDOn(LED3);
@@ -500,8 +427,8 @@ void controlRobot(int ratioF,int ratioB){
 		STM_EVAL_LEDOff(LED6);
 		
 		Motor[MDRIVER].pwm = speed; 
-		stR_PID.controlReference = MID_STR + OFFSET_ST;	//lui
-		stL_PID.controlReference = MID_STL + OFFSET_ST;
+		stR_PID.controlReference = MID_STR - OFFSET_ST;	//lui
+		stL_PID.controlReference = MID_STL - OFFSET_ST;
 		
 	}
 	else if(ratioF == LOST_SIGNAL && ratioB != LOST_SIGNAL){
@@ -512,8 +439,8 @@ void controlRobot(int ratioF,int ratioB){
 		STM_EVAL_LEDOff(LED6);
 		
 		Motor[MDRIVER].pwm = speed;
-		stR_PID.controlReference = MID_STR - OFFSET_ST; //lui
-		stL_PID.controlReference = MID_STL - OFFSET_ST;
+		stR_PID.controlReference = MID_STR + OFFSET_ST; //lui
+		stL_PID.controlReference = MID_STL + OFFSET_ST;
 	}
 	else if(ratioF != LOST_SIGNAL && ratioB != LOST_SIGNAL){
 		/* MID  ---------------------------------------------*/
@@ -527,7 +454,6 @@ void controlRobot(int ratioF,int ratioB){
 		stL_PID.controlReference = MID_STL;
 	}
 	
-	if(count[5] == 50)	{count[5] = 0; controlMotor(Motor[MDRIVER]);}
 	controlSTL();
  	controlSTR();
 }
@@ -582,6 +508,7 @@ Bit CheckDataRxUI(void){
 	
 		if(rxUI.rxData[1] == 1){
 			if(rxUI.rxData[2] == 'r'){
+//				delayS(5);
 				TIM_Cmd(TIM4, ENABLE);
 				flag[START_MAIN] = TRUE;
 			}
@@ -641,7 +568,7 @@ Bit CheckDataRxUI(void){
 */
 void txComputer(char c){
 	if(c == 1){
- 		sprintf(txBufUsart,"ABCcoeff: %d %d\r\n",rxBufLaser[LASER_FORNT],rxBufLaser[LASER_BACK]);
+ 		sprintf(txBufUsart,"ADC_ANGLE_L: %d\r\n",speed);
  		putStringUsart(txBufUsart,USART2);		
 	}
 	else if(c == 2){
@@ -720,15 +647,9 @@ void USART3_IRQHandler(void)
 			/* nhan du lieu tu slave */
       char data = USART_ReceiveData(USART3);
 			
-			/*luu gia tri slave trong mang 
-				gia tri tra ve tu 10:90
-				gia tri mong mun cu ta la tu -40:40
-				-> gia tri tra ve phai  -50
-				gia tri khi ko nhan duoc gi la -51 */
-//			rxBufLaser[slectedLaser] = data - 50;
-			/* co ngan khi nhan duoc gia tri */
-//			flag[RX_LASER] = FALSE;
-			/* chop tat led5 khi nhan dc gia tri tra ve */
+			/*tra ve gia tri 0-1 co hoac ko nhan dc
+				va dia chi con gui 1-2
+			*/
 			if(data == 254){
 				rxLaser.flag = 1;				
 				delrxLaser();

@@ -1,5 +1,5 @@
-#include "GPIO_by_DTU.h"
-#include "Delay_by_DTU.h"
+#include "gGPIO.h"
+#include "gDelay.h"
 /* define lcd control ---------------------------------------*/
 /* LCD memory map */
 #define LCD_LINE0_ADDR 				0x00 		// Start of line 0 in the DD-Ram

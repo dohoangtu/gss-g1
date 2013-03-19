@@ -520,6 +520,11 @@
               <FileType>1</FileType>
               <FilePath>..\..\LIB\G_LIB\gUSART.c</FilePath>
             </File>
+            <File>
+              <FileName>gLCD.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\LIB\G_LIB\gLCD.c</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>
