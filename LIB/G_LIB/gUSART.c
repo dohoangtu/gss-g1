@@ -19,17 +19,6 @@ void usartInitMode(void){
 	
 	/* set mode */
 	usartSetMode(9600,USART_Mode_Rx | USART_Mode_Tx,USART2);
-	
-	/* khai bao io cho usart3 */
-	gpioSetMode(GPIO_Pin_10,GPIO_Mode_AF, GPIO_OType_PP, GPIO_Speed_100MHz, GPIO_PuPd_NOPULL, GPIOC);
-	gpioSetMode(GPIO_Pin_11,GPIO_Mode_AF, GPIO_OType_PP, GPIO_Speed_100MHz, GPIO_PuPd_NOPULL, GPIOC);
-	
-	// Map USART2 to A.02
- 	GPIO_PinAFConfig(GPIOC, GPIO_PinSource10, GPIO_AF_USART3);
-	GPIO_PinAFConfig(GPIOC, GPIO_PinSource11, GPIO_AF_USART3);
-	
-	/* set mode */
-	usartSetModeCommunication(9600,USART_Mode_Rx | USART_Mode_Tx,USART3,MasterAddressed);
 }
 
 void usartSetMode(uint32_t USART_BaudRate, uint16_t USART_Mode, USART_TypeDef* USARTx){

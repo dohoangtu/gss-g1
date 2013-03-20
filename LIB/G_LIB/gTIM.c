@@ -14,15 +14,6 @@ void TimInitMode(void){
   	setModeTimeBase(TIM4_IRQn, TIM4);
   	setModeTimeChannels(TIM4,1,500*Hz);
 		TIM_Cmd(TIM4, DISABLE);
-
-		/* GPIOB Configuration: TIM11 CH1 (PB9) ---------*/ 
-		gpioSetMode(GPIO_Pin_9, GPIO_Mode_AF, GPIO_OType_PP, GPIO_Speed_100MHz, GPIO_PuPd_UP, GPIOB);
-		/* Connect TIM11 pins to AF2 */  
-		GPIO_PinAFConfig(GPIOB, GPIO_PinSource9, GPIO_AF_TIM11);
-		/* set mode of TIM11*/
-		setModePwm(TIM11, 4421, 80000000*Hz);
-		setModePwmChannels(TIM11,1);
-		TIM11->CCR1 = 4300;
 	
 		/* set mode encoder cua tim8-------------------------------------*/
 	  setModeEncoder();

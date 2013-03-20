@@ -39,6 +39,9 @@
 #define PORT_SW 			GPIOD
 #define PIN_SW_END		GPIO_Pin_0
 #define PIN_SW_BEGIN	GPIO_Pin_1
+
+#define PIN_LASER_LEFT	GPIO_ReadInputDataBit(GPIOD,GPIO_Pin_2)
+#define PIN_LASER_RIGHT	GPIO_ReadInputDataBit(GPIOD,GPIO_Pin_4)
 /* Private Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "gPID.h"
@@ -73,12 +76,6 @@ MOTOR Motor[3];
 char tempID;
 /* ADC bufffer */
 __IO uint16_t ADCValue[NUM_BUF_ADC];
-
-/*laser sensor */
-static signed char rxBufLaser[NUM_BUF_RX_LASER];
-SLAVE slectedLaser;
-int a,b;
-BUFF rxLaser;
 /* usart */
 char txBufUsart[NUM_BUF_TX_USART];
 BUFF rxUI;
@@ -122,11 +119,9 @@ void configMotor(void);
 void controlMD(void);
 void controlSTL(void);
 void controlSTR(void);
-void laserLost(void);
 
 /*laser sensor ----------------------------------------*/
-void findSetpointST(int ratioF,int ratioB);
-void controlRobot(int ratioF,int ratioB);
+void controlRobot(void);
 void mainTest(void);
 void mainRun(void);
 void mainStop(void);
@@ -203,7 +198,6 @@ void mainRun(void){
 		if(flag[0] == TRUE){
   			if(CheckDataRxUI() == TRUE) 	GPIO_SetBits(GPIOD, GPIO_Pin_14);
   			else 													GPIO_ResetBits(GPIOD, GPIO_Pin_14);
-		
 				flag[0] = FALSE;
 		}
 		
@@ -211,20 +205,6 @@ void mainRun(void){
 				angleLeft = readAdc(ADC_ANGLE_L);
 				angleRight = readAdc(ADC_ANGLE_R);
 				speed = readAdc(ADC_SPEED);
-			
-				/* read data slave --------------------------------------------------------------------*/
-				if((count[MAIN] % 70) == 0){
-					if(slectedLaser == LASER_BACK){
-						/*truyen cho slaver laser truoc*/
-						putCharUsart(ADDRESS_SLAVE_LASER_F, USART3);	/*truyen dia chi cho slave laser truoc*/
-						slectedLaser = LASER_FORNT;
-					}
-					else if(slectedLaser == LASER_FORNT){
-						/*truyen cho slave laser sau*/
-						putCharUsart(ADDRESS_SLAVE_LASER_B, USART3);	/*truyen dia chi cho slave laser sau*/
-						slectedLaser = LASER_BACK;
-					}	
-				}
 				/* chon goc pe lai cho robot */
 				if(Motor[0].dir == CCW){
 					OFFSET_ST = 100;
@@ -240,14 +220,15 @@ void mainRun(void){
 		}
 		
 		/* truyen du lieu len may tinh */
- 		if(count[MAIN]%300 == 0){
+ 		if(count[MAIN] == 300){
+			count[MAIN] = 0;
 			if(flag[TX_EN] == TRUE)	txComputer(1);
  		}
+		
 		delayMs(SCAN_MAIN_RUN);
 }
 
 void mainStop(void){
-//	TIM11->CCR1 = 0;
 	GPIO_ResetBits(GPIOD,GPIO_Pin_15);
 	GPIO_ResetBits(GPIOD,GPIO_Pin_13);
 	Motor[0].pwm = 0;
@@ -404,13 +385,16 @@ void controlSTR(void){
 
 /**
 	@void: controlRobot
-	@para: int ratioF
-				 int ratioB
+	@para: int PIN_LASER_LEFT
+				 int PIN_LASER_RIGHT
 	@returnVar: none.
 	@fuction: ham tim setpoint cho hai dong steering va control motor driver
 */
-void controlRobot(int ratioF,int ratioB){
-	if(ratioF == LOST_SIGNAL && ratioB == LOST_SIGNAL){
+void controlRobot(void){
+	
+	Motor[MDRIVER].pwm = speed;
+	
+	if(PIN_LASER_LEFT == LOST_SIGNAL && PIN_LASER_RIGHT == LOST_SIGNAL){
 		/* LOST SIGNAL -------------------------------------*/
 		STM_EVAL_LEDOn(LED3);
 		STM_EVAL_LEDOff(LED4);
@@ -419,37 +403,34 @@ void controlRobot(int ratioF,int ratioB){
 		
 		Motor[MDRIVER].pwm = 0; 
 	}
-	else if(ratioF != LOST_SIGNAL && ratioB == LOST_SIGNAL){
+	else if(PIN_LASER_LEFT != LOST_SIGNAL && PIN_LASER_RIGHT == LOST_SIGNAL){
 		/* LEFT ---------------------------------------------*/
 		STM_EVAL_LEDOn(LED4);
 		STM_EVAL_LEDOff(LED3);
 		STM_EVAL_LEDOff(LED5);
 		STM_EVAL_LEDOff(LED6);
 		
-		Motor[MDRIVER].pwm = speed; 
 		stR_PID.controlReference = MID_STR - OFFSET_ST;	//lui
 		stL_PID.controlReference = MID_STL - OFFSET_ST;
 		
 	}
-	else if(ratioF == LOST_SIGNAL && ratioB != LOST_SIGNAL){
+	else if(PIN_LASER_LEFT == LOST_SIGNAL && PIN_LASER_RIGHT != LOST_SIGNAL){
 		/* RIGHT ---------------------------------------------*/
 		STM_EVAL_LEDOn(LED5);
 		STM_EVAL_LEDOff(LED3);
 		STM_EVAL_LEDOff(LED4);
 		STM_EVAL_LEDOff(LED6);
-		
-		Motor[MDRIVER].pwm = speed;
+
 		stR_PID.controlReference = MID_STR + OFFSET_ST; //lui
 		stL_PID.controlReference = MID_STL + OFFSET_ST;
 	}
-	else if(ratioF != LOST_SIGNAL && ratioB != LOST_SIGNAL){
+	else if(PIN_LASER_LEFT != LOST_SIGNAL && PIN_LASER_RIGHT != LOST_SIGNAL){
 		/* MID  ---------------------------------------------*/
 		STM_EVAL_LEDOn(LED6);
 		STM_EVAL_LEDOff(LED3);
 		STM_EVAL_LEDOff(LED4);
 		STM_EVAL_LEDOff(LED5);
-		
-		Motor[MDRIVER].pwm = speed; 
+
 		stR_PID.controlReference = MID_STR;
 		stL_PID.controlReference = MID_STL;
 	}
@@ -482,18 +463,6 @@ void delRxUI(void){
 }
 
 /**
-	@void: delRxUI
-	@para: none
-	@returnVar: none.
-	@fuction: xoa cac phan tu trong mang rxLaser.rxData[]
-*/
-void delrxLaser(void){
-	while(rxLaser.point != 0){
-		rxLaser.rxData[rxLaser.point--] = '\0';
-	}
-}
-
-/**
 	@void: CheckDataRxUI
 	@para: none
 	@returnVar: Bit(TRUE,FALSE)
@@ -508,7 +477,6 @@ Bit CheckDataRxUI(void){
 	
 		if(rxUI.rxData[1] == 1){
 			if(rxUI.rxData[2] == 'r'){
-//				delayS(5);
 				TIM_Cmd(TIM4, ENABLE);
 				flag[START_MAIN] = TRUE;
 			}
@@ -630,47 +598,6 @@ void USART2_IRQHandler(void)
 			}
 		}
 }
-/**
-	@void: USART3_IRQHandler
-	@para: none
-	@rerurnVar: none.
-	@fuction: chuong trinh duoc goi khi co du lieu duoc truyen toi
-	usart3	interface slave 	-> modul laser fornt
-														-> modul laser back
-					connect portC 		-> pin10-RX
-														-> pin11-TX
-*/
-void USART3_IRQHandler(void)       
-{
-    if(USART_GetFlagStatus(USART3, USART_FLAG_RXNE) == SET)
-    {
-			/* nhan du lieu tu slave */
-      char data = USART_ReceiveData(USART3);
-			
-			/*tra ve gia tri 0-1 co hoac ko nhan dc
-				va dia chi con gui 1-2
-			*/
-			if(data == 254){
-				rxLaser.flag = 1;				
-				delrxLaser();
-				rxLaser.point = 0;
-			}
-			else{
-				if(rxLaser.flag == 1){
-						if(rxLaser.point == 0){
-							rxLaser.rxData[rxLaser.point++] = data;
-						}
-						else if(rxLaser.point == 1){
-						//	rxLaser.rxData[rxLaser.point] = data;
-							rxBufLaser[rxLaser.rxData[0] - 1] = data;
-							rxLaser.flag = 0;
-							flag[0] = TRUE;
-						}
-				}
-			}
-		}
-}
-
 
 /**
   * @brief  This function handles TIM4 global interrupt request.
@@ -688,7 +615,7 @@ void TIM4_IRQHandler(void)
 		capture = TIM_GetCapture1(TIM4);
     TIM_SetCompare1(TIM4, capture + readTimeCCR(TIME_4,1));
 		TIM_ClearITPendingBit(TIM4, TIM_IT_CC1);
-		controlRobot(rxBufLaser[LASER_FORNT],rxBufLaser[LASER_BACK]);
+		controlRobot();
 		TIM_SetCounter(TIM8,30000);
 	}
 }

@@ -4,22 +4,22 @@
 /* Private typedef -----------------------------------------------------------*/
 
 /* Private define ------------------------------------------------------------*/
-
+#define STATUS_LEDS 	GPIO_Pin_12 | GPIO_Pin_13| GPIO_Pin_14| GPIO_Pin_15
+#define WARNING_LEDS	GPIO_Pin_6 | GPIO_Pin_7
+#define INPUT_LEDS		GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_4
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 void gpioInitMode(void){
 	/* OUTPUT ------------------------------------------------------------------*/
-	gpioSetMode(GPIO_Pin_2 | GPIO_Pin_12 | GPIO_Pin_13| GPIO_Pin_14| GPIO_Pin_15,
-							GPIO_Mode_OUT, GPIO_OType_PP, GPIO_Speed_100MHz, GPIO_PuPd_NOPULL, GPIOD);
-	gpioSetMode(GPIO_Pin_6 | GPIO_Pin_7, GPIO_Mode_OUT, GPIO_OType_PP, GPIO_Speed_100MHz, GPIO_PuPd_NOPULL, GPIOA);
+	gpioSetMode(STATUS_LEDS,GPIO_Mode_OUT, GPIO_OType_PP, GPIO_Speed_100MHz, GPIO_PuPd_NOPULL, GPIOD);
+	gpioSetMode(WARNING_LEDS,GPIO_Mode_OUT, GPIO_OType_PP, GPIO_Speed_100MHz, GPIO_PuPd_NOPULL, GPIOA);
 	/*status begin--*/
 	GPIO_SetBits(GPIOA, GPIO_Pin_6);
 	GPIO_SetBits(GPIOA, GPIO_Pin_7);
-	GPIO_ResetBits(GPIOD, GPIO_Pin_2);
 	/* INPUT -------------------------------------------------------------------*/
-	gpioSetMode(GPIO_Pin_0 | GPIO_Pin_1, GPIO_Mode_IN, GPIO_OType_PP, GPIO_Speed_100MHz, GPIO_PuPd_UP, GPIOD);
+	gpioSetMode(INPUT_LEDS, GPIO_Mode_IN, GPIO_OType_PP, GPIO_Speed_100MHz, GPIO_PuPd_UP, GPIOD);
 	
 }
 
