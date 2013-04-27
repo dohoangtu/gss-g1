@@ -17,7 +17,7 @@ void MotorConfig(void){
 	GPIO_PinAFConfig(GPIOC, GPIO_PinSource8, GPIO_AF_TIM3);
 	GPIO_PinAFConfig(GPIOC, GPIO_PinSource9, GPIO_AF_TIM3);
 	/* set mode of TIM3*/
-	setModePwm(TIM3, 4135, 84000000*Hz);
+	setModePwm(TIM3, 4135, 10000000*Hz);
 	setModePwmChannels(TIM3,1);
 	setModePwmChannels(TIM3,2);
 	setModePwmChannels(TIM3,3);
@@ -29,7 +29,7 @@ void MotorConfig(void){
 		/* Connect TIM3 pins to AF2 */  
 		GPIO_PinAFConfig(GPIOA, GPIO_PinSource0, GPIO_AF_TIM2);
 		GPIO_PinAFConfig(GPIOA, GPIO_PinSource1, GPIO_AF_TIM2);
-		setModePwm(TIM2, 4135, 84000000*Hz);
+		setModePwm(TIM2, 4135, 10000000*Hz);
 		setModePwmChannels(TIM2,1);
 		setModePwmChannels(TIM2,2);
 	

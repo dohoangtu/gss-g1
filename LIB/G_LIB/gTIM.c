@@ -13,13 +13,13 @@ void TimInitMode(void){
   /* TIM4 clock enable */
   	setModeTimeBase(TIM4_IRQn, TIM4);
   	setModeTimeChannels(TIM4,1,500*Hz);
-		TIM_Cmd(TIM4, DISABLE);
+		TIM_Cmd(TIM4, ENABLE);
 	
 		/* set mode encoder cua tim8-------------------------------------*/
-	  setModeEncoder();
-		setModeCapture();
-	
-		TIM_SetCounter(TIM8,30000);
+// 	  setModeEncoder();
+// 		setModeCapture();
+// 	
+// 		TIM_SetCounter(TIM8,30000);
 }
 
 void RCC_APB_TIM(TIM_TypeDef* TIMx){

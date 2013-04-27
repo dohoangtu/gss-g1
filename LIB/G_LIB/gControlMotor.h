@@ -18,16 +18,16 @@ typedef struct{
 /* Public define ------------------------------------------------------------*/
 #define OFFSET_MOTOR 10
 
-#define OFFSET_STR	-40
-#define MAX_STR 		MID_STR+300
-#define MIN_STR 		MID_STR-300
-#define MID_STR 		2953+OFFSET_STR
+#define OFFSET_STR	-420
+#define MAX_STR 		MID_STR+200
+#define MIN_STR 		MID_STR-200
+#define MID_STR 		2953 + OFFSET_STR
 //#define OFFSET_ST 200;
 
-#define OFFSET_STR	-40
-#define MAX_STL 		MID_STL+300
-#define MIN_STL 		MID_STL-300
-#define MID_STL 		3024+OFFSET_STR
+#define OFFSET_STL	-80
+#define MAX_STL 		MID_STL+200
+#define MIN_STL 		MID_STL-200
+#define MID_STL 		3024 + OFFSET_STL
 
 /* Public macro -------------------------------------------------------------*/
 /* Public variables ---------------------------------------------------------*/

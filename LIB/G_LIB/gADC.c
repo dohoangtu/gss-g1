@@ -94,7 +94,7 @@ void DMA2_Config(void)
   DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)&ADCDualConvertedValue;
   DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)ADC_CCR_ADDRESS;
   DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory;
-  DMA_InitStructure.DMA_BufferSize = 36;
+  DMA_InitStructure.DMA_BufferSize = 4;
   DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
   DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
   DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
@@ -111,9 +111,9 @@ void DMA2_Config(void)
 }
 
 int readAdc(char channels){
-//	ADCVal[channels] = ADCDualConvertedValue[channels];
- 	ADCVal[channels] = (ADCDualConvertedValue[channels] + ADCDualConvertedValue[channels +  4] + ADCDualConvertedValue[channels + 8] +
-											ADCDualConvertedValue[channels + 12] + ADCDualConvertedValue[channels + 16])/5;
+	ADCVal[channels] = ADCDualConvertedValue[channels];
+//  	ADCVal[channels] = (ADCDualConvertedValue[channels] + ADCDualConvertedValue[channels +  4] + ADCDualConvertedValue[channels + 8] +
+// 											ADCDualConvertedValue[channels + 12] + ADCDualConvertedValue[channels + 16])/5;
 	return ADCVal[channels];
 }
 

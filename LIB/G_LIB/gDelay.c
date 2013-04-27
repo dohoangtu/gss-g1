@@ -6,13 +6,13 @@ void oneCycle(unsigned int nCount){
 
 void delayUs(int microseconds){
   while(microseconds--){
-		oneCycle(56);
+		oneCycle(48);
 	}
 }
 
 void delayMs(int milliseconds){
 	while(milliseconds--){
-		delayUs(1000);
+		
 	}
 }
 
